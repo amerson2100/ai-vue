@@ -4,7 +4,7 @@
       <el-button @click="handleCollapse">
         <el-icon><Expand /></el-icon>
       </el-button>
-      <p class="page-title">心理健康AI助手</p>
+      <p class="page-title">{{ route.meta.title }}</p>
     </div>
     <div class="flex-box">
       <el-dropdown @command="handleCommand">
@@ -28,13 +28,31 @@
 <script setup>
 import { ArrowDown, Expand } from "@element-plus/icons-vue";
 import { useAdminStore } from "@/stores/admin";
+import { useRouter, useRoute } from "vue-router";
+import { ElMessageBox } from "element-plus";
+import { logout } from "@/api/admin";
+
+const router = useRouter();
+const route = useRoute();
+
 const adminStore = useAdminStore();
 const handleCollapse = () => {
   adminStore.toggleCollapse();
-}
+};
 const handleCommand = (command) => {
   if (command === "exit") {
     // 退出登录逻辑
+    ElMessageBox.confirm("确定退出登录吗？", "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    }).then(() => {
+      //清除缓存
+      localStorage.removeItem("token");
+      localStorage.removeItem("userInfo");
+      //跳转到登录页
+      router.push("/auth/login");
+    });
   }
 };
 </script>

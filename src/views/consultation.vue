@@ -1,238 +1,1006 @@
 <template>
-  <PageHead title="咨询记录" />
-  <div>
-    <el-table :data="tableData" style="width: 100%">
-      <el-table-column label="会话ID" width="100">
-        <template #default="scope">
-          <el-avatar>{{ scope.row.userNickname }}</el-avatar>
-        </template>
-      </el-table-column>
-      <el-table-column label="情绪日志">
-        <template #default="scope">
-          <div class="session-title">{{ scope.row.sessionTitle }}</div>
-          <div class="session-preview">{{ scope.row.lastMessageContent }}</div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="messageCount" label="消息数" width="100" />
-      <el-table-column prop="lastMessageTime" label="时间" width="100" />
-      <el-table-column label="操作" width="100">
-        <template #default="scope">
-          <el-button
-            type="primary"
-            text
-            size="mini"
-            @click="viewSessionDetail(scope.row)"
-            >详情</el-button
-          >
-        </template>
-      </el-table-column>
-    </el-table>
-    <el-pagination
-      style="margin-top: 25px"
-      :page-size="pagination.size"
-      layout="prev,pager,next"
-      :total="pagination.total"
-      @change="handleChange"
-    />
-    <el-dialog
-      v-model="showDetailDialog"
-      title="咨询会话详情"
-      width="70%"
-      :close-on-click-modal="false"
-    >
-      <div class="session-detail">
-        <div class="detail-header">
-          <div class="detail-row">
-            <div class="detail-label">用户：</div>
-            <div class="detail-value">{{ sessionDetail.userNickname }}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">开始时间：</div>
-            <div class="detail-value">{{ sessionDetail.startedAt }}</div>
-          </div>
-          <div class="detail-row">
-            <div class="detail-label">消息数：</div>
-            <div class="detail-value">{{ sessionDetail.messageCount }}</div>
-          </div>
+  <div class="consultation-container">
+    <div class="sidebar">
+      <!-- AI助手信息-->
+      <div class="ai-assistant-info">
+        <div class="breathing-circle">
+          <el-image
+            :src="iconUrl"
+            style="width: 25px; height: 25px"
+            alt="AI助手"
+            class="assistant-icon"
+          />
         </div>
-        <div class="messages-container">
-          <div class="messages-header">
-            <h4>对话记录</h4>
-          </div>
-          <div>
-            <div class="messages-list" v-loading="loadingMessages">
-              <div v-for="message in sessionMessages" :key="message.id" class="message-item" :class="message.senderType === 1 ? 'user-message' : 'ai-message'">
-               <div class="messages-header">
-                 <div class="sender">{{ message.senderType === 1 ? '用户' : 'AI助手' }}</div>
-                 <div class="time">{{ message.createdAt }}</div>
-               </div>
-               <div class="message-content">{{ message.content }}</div>
+        <h3 class="assistant-name">AI助手</h3>
+        <div class="online-status">
+          <div class="status-dot"></div>
+          在线服务中
+        </div>
+      </div>
+      <!-- 会话列表 -->
+      <div class="session-history">
+        <h4 class="section-title">会话列表</h4>
+        <div class="session-list">
+          <div
+            v-for="session in sessionList"
+            class="session-item"
+            :key="session.id"
+            @click="handleSessionClick(session)"
+          >
+            <div class="session-info">
+              <div class="session-title">
+                <span>{{ session.sessionTitle }}</span>
+                <div class="session-meta">
+                  <span class="session-time">{{ session.startedAt }}</span>
+                </div>
+                <div class="session-preview">
+                  {{ session.lastMessageContent }}
+                </div>
+                <div class="session-stats">
+                  <span>
+                    <el-icon>
+                      <ChatRound />
+                    </el-icon>
+                    {{ session.messageCount || 0 }}
+                  </span>
+                  <span>
+                    <el-icon>
+                      <Clock />
+                    </el-icon>
+                    {{ session.durationMinutes || 0 }}分钟
+                  </span>
+                </div>
+              </div>
+              <div class="session-actions">
+                <el-button
+                  type="danger"
+                  size="small"
+                  text
+                  @click="handleDeleteSession(session.id)"
+                >
+                  <el-icon>
+                    <DeleteFilled />
+                  </el-icon>
+                </el-button>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <template #footer>
-        <el-button type="primary" @click="showDetailDialog = false">
-          关闭
+    </div>
+
+    <div class="chat-main">
+      <div class="chat-header">
+        <div class="header-left">
+          <div class="chat-avatar">
+            <el-image
+              :src="iconUrl1"
+              style="width: 30px; height: 30px"
+              alt="AI助手"
+            />
+          </div>
+          <div class="chat-info">
+            <h2>AI助手</h2>
+            <p>您贴心的ai助手</p>
+          </div>
+        </div>
+        <el-button circle @click="createNewFrontendSession" title="创建新会话">
+          <el-icon>
+            <Plus />
+          </el-icon>
         </el-button>
-      </template>
-    </el-dialog>
+      </div>
+      <!-- 聊天区域 -->
+      <div class="chat-messages">
+        <!-- 欢迎用语 -->
+        <div class="message-item ai-message" v-if="messages.length === 0">
+          <div class="message-avatar">
+            <el-image :src="iconUrl" style="width: 18px; height: 18px" />
+          </div>
+          <div class="message-content">
+            <div class="message-bubble">
+              <p>欢迎来到AI助手，我是您的智能助手，您可以向我咨询任何问题。</p>
+            </div>
+            <div class="message-time">刚刚</div>
+          </div>
+        </div>
+        <!-- 消息列表 -->
+        <div
+          v-for="msg in messages"
+          :key="msg.id"
+          class="message-item"
+          :class="msg.senderType === 1 ? 'user-message' : 'ai-message'"
+        >
+          <div class="message-avatar">
+            <el-image
+              v-if="msg.senderType === 1"
+              :src="iconUrl2"
+              style="width: 18px; height: 18px"
+            />
+            <el-image
+              v-if="msg.senderType === 2"
+              :src="iconUrl"
+              style="width: 18px; height: 18px"
+            />
+          </div>
+          <div class="message-content">
+            <div class="message-bubble">
+              <!-- ai正在思考 -->
+              <div
+                v-if="msg.senderType === 2 && isAiTyping && !msg.content"
+                class="typing-indicator"
+              >
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+              </div>
+              <!-- AI错误提示 -->
+              <div v-else-if="isError" class="error-message">
+                <p>{{ msg.content }}</p>
+              </div>
+              <!-- 正常消息 -->
+              <MarkdownRenderer
+                v-else-if="msg.senderType === 2 && !msg.isError"
+                :content="msg.content"
+                :is-ai-message="true"
+              />
+              <p
+                v-else-if="msg.content"
+                v-html="formatMessageContent(msg.content)"
+              ></p>
+            </div>
+            <div class="message-time">
+              {{
+                msg.senderType === 2 && isAiTyping
+                  ? "正在输入..."
+                  : msg.createdAt
+              }}
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- 消息输入区域 -->
+      <div class="chat-input">
+        <div class="input-container">
+          <el-input
+            v-model="userMessage"
+            placeholder="请输入消息"
+            type="textarea"
+            :rows="3"
+            :disabled="isAiTyping"
+            @keydown="handleKeyDown"
+            class="message-input"
+            clearable
+          ></el-input>
+          <div class="input-footer">
+            <span>按Enter发送，Shift+Enter换行</span>
+            <span>{{ userMessage.length }}/500</span>
+          </div>
+        </div>
+        <el-button
+          :disabled="!userMessage.trim() || userMessage.length > 500"
+          type="primary"
+          class="send-btn"
+          @click="sendMessage"
+        >
+          <el-icon>
+            <Promotion />
+          </el-icon>
+        </el-button>
+      </div>
+    </div>
   </div>
 </template>
+
 <script setup>
-import { onMounted, reactive, ref } from "vue";
-import PageHead from "@/components/PageHead.vue";
-import { getConsultationPage, getSessionDetail } from "@/api/admin";
+import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import {
+  startSession,
+  getSessionList,
+  deleteSession,
+  getSessionDetail,
+} from "@/api/frontend";
+import { ChatRound, Clock, DeleteFilled } from "@element-plus/icons-vue";
+import MarkdownRenderer from "@/components/MarkdownRenderer.vue";
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 
-const tableData = ref([]);
+const iconUrl = new URL("@/assets/images/robot-fill.png", import.meta.url).href;
+const iconUrl1 = new URL("@/assets/images/like.png", import.meta.url).href;
+const iconUrl2 = new URL("@/assets/images/users.png", import.meta.url).href;
 
-const pagination = reactive({
-  currentPage: 1,
-  size: 10,
-  total: 0,
-});
+//新建会话
+const createNewFrontendSession = () => {
+  //创建一个新的会话对象
+  const newSession = {
+    sessionId: `temp_${Date.now()}`,
+    status: "TEMP",
+    sessionTitle: "新会话",
+  };
+  currentSession.value = newSession;
+  //清空消息列表，开始新对话
+  messages.value = [];
+};
 
-//会话详情
-const sessionDetail = ref({});
-const sessionMessages = ref([]);
-const loadingMessages = ref(false);
+//定义一个当前会话对象
+const currentSession = ref(null);
+const sessionList = ref([]);
 
-const viewSessionDetail = (row) => {
-  loadingMessages.value = true;    
-  showDetailDialog.value = true;
-  getSessionDetail(row.id).then((res) => {
-    loadingMessages.value = false;
-    sessionMessages.value = res;
-    sessionDetail.value = row;
+// 定义对话消息
+const messages = ref([]);
+//定义用户输入消息
+const userMessage = ref("");
+//定义AI助手是否正在输入
+const isAiTyping = ref(false);
+
+//定义处理键盘事件
+const handleKeyDown = (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+};
+
+//用户发送消息
+const sendMessage = () => {
+  //检查是否有当前会话
+  if (!userMessage.value.trim()) return;
+  if (isAiTyping.value) {
+    ElMessage.error("AI助手正在输入，请稍后");
+    return;
+  }
+
+  const message = userMessage.value.trim();
+  userMessage.value = "";
+
+  //如果没有会话或者临时会话，需要创建一个新的会话
+  if (currentSession.value.status === "TEMP") {
+    startNewSession(message);
+  } else {
+    //继续现有会话
+    messages.value.push({
+      id: Date.now(),
+      senderType: 1,
+      content: message,
+      createAt: new Date().toISOString(),
+    });
+    //开始流式对话
+    startAIResponse(currentSession.value.sessionId, message);
+  }
+};
+
+const startNewSession = (message) => {
+  //构建一个会话的参数
+  const sessionParams = {
+    initialMessage: message,
+  };
+  if (currentSession.value.sessionTitle === "新会话") {
+    sessionParams.sessionTitle = `AI助手 - ${new Date().toLocaleString()}`;
+  } else {
+    //如果是历史会话记录
+    sessionParams.sessionTitle = currentSession.value.sessionTitle;
+  }
+
+  //调用后端接口创建会话
+  startSession(sessionParams).then((res) => {
+    //将后端返回数据转为前端会话格式
+    const sessionData = {
+      sessionId: res.sessionId,
+      status: res.status,
+      sessionTitle: sessionParams.sessionTitle,
+    };
+    //如果当前是临时对话，更新数据
+    if (currentSession.value && currentSession.value.status === "TEMP") {
+      // 更新为正式对话
+      Object.assign(currentSession.value, sessionData);
+    } else {
+      //否则创建一个新的对话
+      currentSession.value = sessionData;
+    }
+    //更新会话列表
+    getSessionPage();
+    //添加用户内容
+    messages.value.push({
+      id: Date.now(),
+      senderType: 1,
+      content: message,
+      createAt: new Date().toISOString(),
+    });
+    //开始流式对话
+    startAIResponse(currentSession.value.sessionId, message);
   });
 };
 
-const handleChange = (page) => {
-  pagination.currentPage = page;
-  handleSearch();
-};
+const startAIResponse = (sessionId, userMessage) => {
+  //防止重复发送
+  if (isAiTyping.value) {
+    ElMessage.error("AI助手正在输入，请稍后");
+    return;
+  }
+  isAiTyping.value = true;
 
-const handleSearch = () => {
-  getConsultationPage(pagination).then((res) => {
-    const { records, total } = res;
-    tableData.value = records;
-    pagination.total = total;
+  const aiMessage = {
+    id: `ai_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+    senderType: 2,
+    content: "",
+    createAt: new Date().toISOString(),
+  };
+  messages.value.push(aiMessage);
+
+  //调用流式接口
+  const ctrl = new AbortController(); //终止fetch请求
+  fetchEventSource("/api/psychological-chat/stream", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Token: localStorage.getItem("token"),
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({
+      sessionId,
+      userMessage,
+    }),
+    signal: ctrl.signal,
+    onopen: (response) => {
+      console.log("response", response);
+      if (response.headers.get("content-type") !== "text/event-stream") {
+        ElMessage.error("AI助手返回非流式数据");
+      }
+    },
+    onmessage: (event) => {
+      const raw = event.data.trim();
+      if (!raw) return;
+      const eventName = event.event;
+      //当前会话的ai消息
+      const aiMessage = messages.value[messages.value.length - 1];
+      if (eventName === "done") {
+        isAiTyping.value = false;
+        ctrl.abort();
+        return;
+      }
+      const payload = JSON.parse(raw);
+      const ok = String(payload.code) === "200";
+      if (ok && payload.data && payload.data.content) {
+        aiMessage.content += payload.data.content;
+      } else if (!ok) {
+        //错误回复显示
+        handleError(payload.message || "AI回复失败");
+        return;
+      }
+    },
+    onError: (err) => {
+      handleError(err || "AI回复失败");
+      throw err;
+    },
+    onClose: () => {
+      //开始情绪分析
+    },
   });
 };
 
-const showDetailDialog = ref(false);
+//错误处理函数
+const handleError = (error) => {
+  //当前会话的ai消息
+  const aiMessage = message.value[message.value.length - 1];
+  if (aiMessage) {
+    aiMessage.content = "AI回复失败，请稍后重试";
+  }
+  isAiTyping.value = false;
+  ElMessage.error("AI回复失败，请稍后重试");
+};
+
+const getSessionPage = () => {
+  getSessionList({
+    pageNum: 1,
+    pageSize: 10,
+  }).then((res) => {
+    console.log(res);
+    sessionList.value = res.records;
+  });
+};
+
+//获取会话数据
+const handleSessionClick = (session) => {
+  getSessionDetail(session.id).then((res) => {
+    console.log(res);
+    messages.value = res || [];
+  });
+  //更新当前对话对象数据
+  const sessionData = {
+    sessionId: "session_" + session.id,
+    status: "ACTIVE",
+    sessionTitle: session.sessionTitle,
+  };
+  currentSession.value = sessionData;
+};
+
+const handleDeleteSession = (sessionId) => {
+  deleteSession(sessionId).then((res) => {
+    ElMessage.success("会话删除成功");
+    getSessionPage();
+  });
+};
+
+//简单的换行逻辑
+const formatMessageContent = (content) => {
+  return content.replace(/\n/g, "<br>");
+};
 
 onMounted(() => {
-  handleSearch();
+  getSessionPage();
+  //初始化时创建一个新对话
+  createNewFrontendSession();
 });
 </script>
 
-<style lang="scss" scoped>
-.session-title {
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 4px;
-}
-.session-preview {
-  font-size: 13px;
-  color: #666;
-  margin-bottom: 4px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.session-detail {
-  max-height: 70vh;
-  overflow-y: auto;
-  .detail-header {
-    margin-bottom: 20px;
-    padding: 16px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #e9ecef;
-  }
-
-  .detail-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-    :last-child {
-      margin-bottom: 0;
-    }
-    .detail-label {
-      font-weight: 500;
-      color: #495057;
-      min-width: 80px;
-      margin-right: 8px;
-    }
-
-    .detail-value {
-      color: #333;
-    }
-  }
-}
-.messages-container {
-  margin-top: 20px;
-  .messages-header {
-    margin-bottom: 16px;
-    h4 {
-      margin: 0;
-      color: #333;
-      font-size: 16px;
-      font-weight: 500;
-    }
-  }
-  .messages-list {
-    max-height: 400px;
-    overflow-y: auto;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    padding: 16px;
-    background: #fff;
-    .message-item {
-      margin-bottom: 12px;
-      padding: 12px;
-      border-radius: 8px;
-      background: #f8f9fa;
-      border: 1px solid #e9ecef;
-      :last-child {
-        margin-bottom: 0;
-      }
-      &.user-message {
-        background: #e8f4fd;
-      }
-
-      &.ai-message {
-        background: #f0f9f0;
-      }
-    }
-    .message-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      .sender {
-        font-weight: 500;
-        color: #333;
+<style scoped lang="scss">
+.consultation-container {
+  margin: 0 auto;
+  width: 1200px;
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  .sidebar {
+    width: 320px;
+    .ai-assistant-info {
+      margin-bottom: 20px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.9) 0%,
+        rgba(255, 252, 248, 0.95) 100%
+      );
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow:
+        0 8px 32px rgba(251, 146, 60, 0.06),
+        0 2px 8px rgba(0, 0, 0, 0.04);
+      border: 1px solid rgba(251, 146, 60, 0.08);
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
+      .breathing-circle {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+        border-radius: 50%;
         display: flex;
         align-items: center;
-        gap: 4px;
+        justify-content: center;
+        margin: 0 auto 12px;
+        animation: breathing 4s ease-in-out infinite;
+        box-shadow: 0 6px 24px rgba(251, 146, 60, 0.25);
+        position: relative;
       }
-
-      .time {
+      .assistant-name {
+        font-size: 16px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #fb923c, #f59e0b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        background-clip: text;
+        margin: 0 0 12px;
+      }
+      .online-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #059669;
         font-size: 12px;
-        color: #999;
+        font-weight: 600;
+        .status-dot {
+          width: 8px;
+          height: 8px;
+          background: #059669;
+          border-radius: 50%;
+          margin-right: 8px;
+          animation: pulse 2s infinite;
+          box-shadow: 0 0 8px rgba(5, 150, 105, 0.4);
+        }
       }
-
-      .message-content {
+    }
+    .session-history {
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+      min-height: 250px;
+      display: flex;
+      flex-direction: column;
+      .section-title {
+        font-size: 16px;
+        font-weight: 600;
         color: #333;
-        line-height: 1.6;
-        white-space: pre-wrap;
-        margin-top: 8px;
-        font-size: 14px;
+        margin: 0 0 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .session-list {
+        overflow-y: auto;
+        max-height: 200px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(64, 150, 255, 0.3) transparent;
+        .session-item {
+          position: relative;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 12px;
+          margin-bottom: 8px;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          border: 2px solid transparent;
+          &:hover {
+            background: #f8f9ff;
+            border-color: #e6f0ff;
+          }
+          &.active {
+            background: #e6f0ff;
+            border-color: #4096ff;
+          }
+          .session-info {
+            flex: 1;
+            .session-title {
+              font-weight: 500;
+              font-size: 14px;
+              color: #333;
+              margin-bottom: 4px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              .session-meta {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 6px;
+                .session-time {
+                  font-size: 12px;
+                  color: #999;
+                }
+              }
+              .session-preview {
+                width: 200px;
+                font-size: 12px;
+                color: #666;
+                margin-bottom: 6px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+              }
+              .session-stats {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                span {
+                  font-size: 12px;
+                  color: #999;
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                }
+              }
+            }
+            .session-actions {
+              position: absolute;
+              top: 10px;
+              right: 12px;
+            }
+          }
+        }
+        .no-sessions-text {
+          text-align: center;
+          font-size: 14px;
+          color: #999;
+        }
+      }
+    }
+    .emotion-garden {
+      background: linear-gradient(
+        135deg,
+        #fef9e7 0%,
+        #fcf4e6 50%,
+        #f6f0e8 100%
+      );
+      border-radius: 20px;
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 32px rgba(252, 244, 230, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+      min-height: 300px;
+
+      .garden-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+        position: relative;
+        z-index: 2;
+        .garden-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          color: #8b4513;
+        }
+      }
+      .emotion-info {
+        margin: 0 auto;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        background: linear-gradient(
+          135deg,
+          #ff9a9e 0%,
+          #fecfef 50%,
+          #fecfef 100%
+        );
+        color: #fff;
+        .emotion-name {
+          font-size: 15px;
+          font-weight: 600;
+          line-height: 1;
+          margin-bottom: 2px;
+        }
+        .emotion-score {
+          font-size: 14px;
+          font-weight: 700;
+          opacity: 0.9;
+        }
+      }
+      .warm-tips {
+        text-align: center;
+        margin-bottom: 16px;
+        .emotion-status-text {
+          margin-bottom: 12px;
+          .status-label {
+            font-size: 14px;
+            color: #8b7355;
+            margin-right: 8px;
+          }
+          .status-emotion {
+            font-size: 16px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 16px;
+            display: inline-block;
+          }
+        }
+        .emotion-intensity {
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          .intensity-dots {
+            display: flex;
+            gap: 4px;
+            .dot {
+              width: 8px;
+              height: 8px;
+              border-radius: 50%;
+              background: #e0e0e0;
+              transition: all 0.3s ease;
+              &.active {
+                background: linear-gradient(135deg, #ff9a9e, #fecfef);
+                transform: scale(1.2);
+                box-shadow: 0 2px 8px rgba(255, 154, 158, 0.4);
+              }
+            }
+          }
+          .intensity-text {
+            font-size: 12px;
+            color: #8b7355;
+            font-weight: 500;
+          }
+        }
+        .warm-suggestion {
+          background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.95),
+            rgba(255, 255, 255, 0.8)
+          );
+          border-radius: 16px;
+          padding: 12px;
+          margin-bottom: 16px;
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.6);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+          .suggestion-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+          }
+          .suggestion-content {
+            text-align: left;
+            flex: 1;
+            .suggestion-title {
+              font-size: 14px;
+              font-weight: 600;
+              color: #8b7355;
+              margin-bottom: 6px;
+            }
+            .suggestion-text {
+              font-size: 13px;
+              color: #6b5b47;
+              line-height: 1.5;
+            }
+          }
+        }
+        .healing-actions {
+          margin-bottom: 16px;
+          .actions-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b7355;
+            margin-bottom: 16px;
+          }
+          .actions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            .action-item {
+              background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.9),
+                rgba(255, 255, 255, 0.7)
+              );
+              border-radius: 12px;
+              padding: 12px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              border: 1px solid rgba(255, 255, 255, 0.5);
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+              text-align: left;
+              .action-icon {
+                font-size: 14px;
+                color: #ffd700;
+                flex-shrink: 0;
+              }
+              .action-text {
+                font-size: 12px;
+                color: #6b5b47;
+                line-height: 1.4;
+                flex: 1;
+              }
+            }
+          }
+        }
+        .risk-notice {
+          background: linear-gradient(135deg, #fff9e6, #ffeaa7);
+          border-radius: 16px;
+          padding: 16px;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          border: 1px solid rgba(255, 234, 167, 0.6);
+          box-shadow: 0 6px 20px rgba(255, 234, 167, 0.3);
+          .notice-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+            margin-top: 2px;
+          }
+          .notice-content {
+            flex: 1;
+            .notice-title {
+              font-size: 14px;
+              font-weight: 600;
+              color: #d4840f;
+              margin-bottom: 6px;
+            }
+            .notice-text {
+              font-size: 13px;
+              color: #b8740c;
+              line-height: 1.5;
+            }
+          }
+        }
+      }
+    }
+  }
+  .chat-main {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 252, 250, 0.98) 100%
+    );
+    border-radius: 20px;
+    box-shadow:
+      0 12px 40px rgba(251, 146, 60, 0.08),
+      0 4px 16px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(251, 146, 60, 0.1);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    .chat-header {
+      background: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+      color: white;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      flex-shrink: 0;
+      .header-left {
+        display: flex;
+        align-items: center;
+        .chat-avatar {
+          width: 48px;
+          height: 48px;
+          background: rgba(255, 255, 255, 0.25);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-right: 16px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          position: relative;
+          z-index: 1;
+        }
+        .chat-info {
+          h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 4px;
+          }
+          p {
+            font-size: 14px;
+          }
+        }
+      }
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.02) 0%,
+        rgba(255, 252, 248, 0.05) 100%
+      );
+      min-height: 0;
+      max-height: calc(100vh - 200px);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(251, 146, 60, 0.3) transparent;
+      .message-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        .message-avatar {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          color: white;
+          flex-shrink: 0;
+        }
+        &.ai-message {
+          .message-avatar {
+            background: linear-gradient(135deg, #fb923c, #f59e0b);
+            box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+          }
+        }
+        &.user-message {
+          .message-avatar {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+          }
+        }
+        .message-content {
+          max-width: 70%;
+          .message-bubble {
+            background: linear-gradient(
+              135deg,
+              rgba(255, 255, 255, 0.9) 0%,
+              rgba(255, 252, 248, 0.95) 100%
+            );
+            border-radius: 16px;
+            padding: 12px 16px;
+            position: relative;
+            animation: fadeInUp 0.4s ease-out;
+            border: 1px solid rgba(251, 146, 60, 0.1);
+            box-shadow: 0 4px 16px rgba(251, 146, 60, 0.05);
+            .typing-indicator {
+              display: flex;
+              gap: 4px;
+              padding: 8px 0;
+              .typing-dot {
+                width: 8px;
+                height: 8px;
+                background: #ccc;
+                border-radius: 50%;
+                animation: typing 1.5s ease-in-out infinite;
+                &:nth-child(2) {
+                  animation-delay: 0.2s;
+                }
+                &:nth-child(3) {
+                  animation-delay: 0.4s;
+                }
+              }
+            }
+            /* 错误消息样式 */
+            .error-message {
+              background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+              border: 1px solid #f87171;
+              border-radius: 12px;
+              padding: 12px 16px;
+              color: #991b1b;
+              font-weight: 500;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+          }
+          .message-time {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+          }
+        }
+      }
+    }
+    .chat-input {
+      border-top: 1px solid rgba(251, 146, 60, 0.1);
+      padding: 20px 24px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.5) 0%,
+        rgba(255, 252, 248, 0.7) 100%
+      );
+      backdrop-filter: blur(10px);
+      flex-shrink: 0;
+      .input-container {
+        flex: 1;
+      }
+      .input-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        color: #78716c;
+        font-weight: 500;
+      }
+      .send-btn {
+        height: 60px;
+        width: 60px;
+        border-radius: 16px;
+        background: linear-gradient(
+          135deg,
+          #fb923c 0%,
+          #f59e0b 100%
+        ) !important;
+        border: none !important;
+        box-shadow: 0 6px 20px rgba(251, 146, 60, 0.25);
+        transition: all 0.3s ease;
       }
     }
   }
