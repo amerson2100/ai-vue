@@ -8,9 +8,13 @@
         </h2>
         <p class="description">与我分享你的情感，我将为你提供支持和理解。</p>
         <div class="hero-actions">
-          <el-button size="large"> 开始对话 </el-button>
-          <el-button size="large" style="border-color: #fff; color: #fff; background: transparent;">
-           记录心情
+          <el-button size="large" @click="goToChat"> 开始对话 </el-button>
+          <el-button
+            size="large"
+            style="border-color: #fff; color: #fff; background: transparent"
+            @click="goToDiary"
+          >
+            记录心情
           </el-button>
         </div>
       </div>
@@ -26,10 +30,20 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 
+const router = useRouter();
 const iconUrl = new URL("@/assets/images/robot-fill.png", import.meta.url).href;
+
+const goToChat = () => {
+  router.push("/consultation");
+};
+
+const goToDiary = () => {
+  router.push("/emotion-diary");
+};
 </script>
 
 <style scoped lang="scss">

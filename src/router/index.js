@@ -86,6 +86,11 @@ const frontendRoutes = [
         path: "knowledge",
         component: () => import("@/views/frontendKnoledge.vue"),
       },
+      {
+        path: "knowledge/article/:id",
+        component: () => import("@/views/articleDetail.vue"),
+        props: true,
+      },
     ],
   },
 ];
@@ -109,9 +114,9 @@ router.beforeEach((to, from, next) => {
       }
     } else if (userInfo.userType == 1) {
       //对于用户端，如果访问的是后台页面，跳转到首页
-      if(to.path.startsWith("/back")||to.path.startsWith("/auth")){
+      if (to.path.startsWith("/back") || to.path.startsWith("/auth")) {
         next("/");
-      }else{
+      } else {
         next();
       }
     }
